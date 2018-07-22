@@ -1,8 +1,8 @@
-use serde_json;
-use std::collections::HashMap;
 use errors::*;
-use std::str::FromStr;
+use serde_json;
 use std;
+use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Permitted JSON-API values (all JSON Values)
 pub type JsonApiValue = serde_json::Value;
@@ -138,7 +138,6 @@ pub struct Pagination {
     pub last: Option<String>,
 }
 
-
 #[derive(Debug)]
 pub struct Patch {
     pub patch_type: PatchType,
@@ -171,16 +170,16 @@ impl PatchSet {
 /// Top-level JSON-API Document
 impl JsonApiDocument {
     fn has_errors(&self) -> bool {
-        !self.errors.is_none()
+        self.errors.is_some()
     }
     fn has_meta(&self) -> bool {
-        !self.errors.is_none()
+        self.errors.is_some()
     }
     fn has_included(&self) -> bool {
-        !self.included.is_none()
+        self.included.is_some()
     }
     fn has_data(&self) -> bool {
-        !self.data.is_none()
+        self.data.is_some()
     }
     /// This function returns `false` if the `JsonApiDocument` contains any violations of the
     /// specification. See `DocumentValidationError`
@@ -230,7 +229,6 @@ impl JsonApiDocument {
     /// }
     /// ```
     pub fn validate(&self) -> Option<Vec<DocumentValidationError>> {
-
         let mut errors = Vec::<DocumentValidationError>::new();
 
         if self.has_data() && self.has_errors() {
@@ -249,7 +247,6 @@ impl JsonApiDocument {
             0 => None,
             _ => Some(errors),
         }
-
     }
 }
 
@@ -281,12 +278,10 @@ impl Resource {
     pub fn get_relationship(&self, name: &str) -> Option<&Relationship> {
         match self.relationships {
             None => None,
-            Some(ref relationships) => {
-                match relationships.get(name) {
-                    None => None,
-                    Some(rel) => Some(rel),
-                }
-            }
+            Some(ref relationships) => match relationships.get(name) {
+                None => None,
+                Some(rel) => Some(rel),
+            },
         }
     }
 
@@ -330,22 +325,31 @@ impl Resource {
         }
     }
 
-    pub fn diff(&self, other: Resource) -> std::result::Result<PatchSet, DiffPatchError> {
+    pub fn diff(&self, other: &Resource) -> std::result::Result<PatchSet, DiffPatchError> {
         if self._type != other._type {
-            Err(DiffPatchError::IncompatibleTypes(self._type.clone(), other._type.clone()))
+            Err(DiffPatchError::IncompatibleTypes(
+                self._type.clone(),
+                other._type.clone(),
+            ))
         } else {
-
             let mut self_keys: Vec<String> =
                 self.attributes.iter().map(|(key, _)| key.clone()).collect();
 
             self_keys.sort();
 
-            let mut other_keys: Vec<String> =
-                other.attributes.iter().map(|(key, _)| key.clone()).collect();
+            let mut other_keys: Vec<String> = other
+                .attributes
+                .iter()
+                .map(|(key, _)| key.clone())
+                .collect();
 
             other_keys.sort();
 
-            let matching = self_keys.iter().zip(other_keys.iter()).filter(|&(a, b)| a == b).count();
+            let matching = self_keys
+                .iter()
+                .zip(other_keys.iter())
+                .filter(|&(a, b)| a == b)
+                .count();
 
             if matching != self_keys.len() {
                 Err(DiffPatchError::DifferentAttributeKeys)
@@ -355,12 +359,13 @@ impl Resource {
                 for (attr, self_value) in &self.attributes {
                     match other.attributes.get(attr) {
                         None => {
-                            error!("Resource::diff unable to find attribute {:?} in {:?}",
-                                   attr,
-                                   other);
+                            error!(
+                                "Resource::diff unable to find attribute {:?} in {:?}",
+                                attr, other
+                            );
                         }
                         Some(other_value) => {
-                            if self_value.to_string() != other_value.to_string() {
+                            if self_value != other_value {
                                 patchset.push(Patch {
                                     patch_type: PatchType::Attribute,
                                     subject: attr.clone(),
@@ -370,7 +375,6 @@ impl Resource {
                             }
                         }
                     }
-
                 }
 
                 Ok(patchset)
@@ -378,10 +382,11 @@ impl Resource {
         }
     }
 
-    pub fn patch(&mut self, patchset: PatchSet) -> Result<Resource> {
+    pub fn patch(&mut self, patchset: &PatchSet) -> Result<Resource> {
         let mut res = self.clone();
         for patch in &patchset.patches {
-            res.attributes.insert(patch.subject.clone(), patch.next.clone());
+            res.attributes
+                .insert(patch.subject.clone(), patch.next.clone());
         }
         Ok(res)
     }
@@ -411,10 +416,9 @@ impl FromStr for Resource {
     /// assert_eq!(data.is_ok(), true);
     /// ```
     fn from_str(s: &str) -> Result<Self> {
-        serde_json::from_str(s).chain_err(|| "Error parsing resource" )
+        serde_json::from_str(s).chain_err(|| "Error parsing resource")
     }
 }
-
 
 impl Relationship {
     pub fn as_id(&self) -> std::result::Result<Option<&JsonApiId>, RelationshipAssumptionError> {
